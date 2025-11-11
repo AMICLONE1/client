@@ -1,3 +1,4 @@
+// src/components/CellGrid.js
 import React from "react";
 
 const parseNumber = (v) => {
@@ -18,21 +19,31 @@ const classFor = (n) => {
 
 export default function CellGrid({ voltages = [] }) {
   let arr = Array.isArray(voltages) ? voltages : [];
-  if (!arr.length) arr = new Array(8).fill(null); // default 8 cells if none
-  const cells = arr.map((v, i) => {
-    const n = parseNumber(v);
-    const display = n !== null && !Number.isNaN(n) ? `${n.toFixed(2)} V` : "—";
-    return { idx: i + 1, cls: classFor(n), display };
-  });
+  if (!arr.length) arr = new Array(8).fill(null);
 
   return (
-    <>
-      {cells.map((c) => (
-        <div key={c.idx} className={`cell ${c.cls}`}>
-          <div className="volt">{c.display}</div>
-          <div className="label">Cell {c.idx}</div>
-        </div>
-      ))}
-    </>
+    <div className="cell-grid-modern">
+      {arr.map((v, i) => {
+        const n = parseNumber(v);
+        const display =
+          n !== null && !Number.isNaN(n) ? `${n.toFixed(3)}V` : "—";
+        const cls = classFor(n);
+
+        return (
+          <div key={i} className={`cell-modern ${cls}`}>
+            <div className="cell-number">#{i + 1}</div>
+            <div className="cell-voltage">{display}</div>
+            <div className="cell-bar">
+              <div
+                className="cell-bar-fill"
+                style={{
+                  width: n ? `${Math.min(100, (n / 4.2) * 100)}%` : "0%",
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

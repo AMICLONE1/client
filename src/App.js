@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Dashboard from "./components/Dashboard";
 import CellGrid from "./components/CellGrid";
+import TemperatureGrid from "./components/TemperatureGrid";
 import TimeSeriesCharts from "./components/TimeSeriesCharts";
 import Footer from "./components/Footer";
 import { db } from "./firebase";
@@ -9,7 +10,53 @@ import { ref as dbRef, onValue } from "firebase/database";
 
 const MAX_HISTORY = 90;
 
-/* small helper that extracts numeric value from strings like '323V' or '15A' */
+// Flash BMS Logo SVG
+const FlashLogo = () => (
+  <svg
+    width="120"
+    height="60"
+    viewBox="0 0 200 100"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <defs>
+      <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" style={{ stopColor: "#4f8cff", stopOpacity: 1 }} />
+        <stop offset="100%" style={{ stopColor: "#2bd48a", stopOpacity: 1 }} />
+      </linearGradient>
+    </defs>
+    <text
+      x="10"
+      y="35"
+      style={{
+        fill: "url(#textGrad)",
+        fontFamily: "Arial, sans-serif",
+        fontWeight: 900,
+        fontSize: 32,
+      }}
+    >
+      FLASH
+    </text>
+    <text
+      x="10"
+      y="75"
+      style={{
+        fill: "url(#textGrad)",
+        fontFamily: "Arial, sans-serif",
+        fontWeight: 900,
+        fontSize: 32,
+      }}
+    >
+      BMS
+    </text>
+    <polygon
+      points="140,20 120,50 130,50 110,80 135,50 125,50"
+      fill="#ffb86b"
+      stroke="#ff9b3d"
+      strokeWidth="2"
+    />
+  </svg>
+);
+
 function parseNum(s) {
   if (s == null) return null;
   if (typeof s === "number") return s;
@@ -17,12 +64,10 @@ function parseNum(s) {
   return m ? parseFloat(m[0]) : null;
 }
 
-/* normalize payload shapes for Firebase BMS structure */
 function normalizePayload(raw) {
   if (!raw || typeof raw !== "object") return raw;
   const p = { ...raw };
 
-  // timestamp normalization -> ms since epoch
   if (p.timestamp != null) {
     const ts =
       typeof p.timestamp === "string" ? parseInt(p.timestamp, 10) : p.timestamp;
@@ -31,142 +76,76 @@ function normalizePayload(raw) {
     p.timestamp = Date.now();
   }
 
-  // Build dashboard object from BMS data
   if (!p.dashboard) {
     p.dashboard = {};
 
-    // Pack voltage from totalPackVoltage
     if (p.totalPackVoltage != null) {
       const pack = parseFloat(p.totalPackVoltage);
       p.dashboard.PackVoltage = Number.isFinite(pack)
         ? `${pack.toFixed(2)}V`
         : String(p.totalPackVoltage);
-    } else if (p.packVoltage != null) {
-      p.dashboard.PackVoltage = String(p.packVoltage);
     }
 
-    // SOC mapping
-    if (p.SOC != null) {
-      p.dashboard.SOC = Math.round(Number(p.SOC));
-    } else if (p.soc != null) {
-      p.dashboard.SOC = Math.round(Number(p.soc));
-    }
+    if (p.SOC != null) p.dashboard.SOC = Math.round(Number(p.SOC));
+    if (p.SOH != null) p.dashboard.SOH = Math.round(Number(p.SOH));
+    else p.dashboard.SOH = 100;
 
-    // SOH - default to 100 if not provided
-    if (p.SOH != null) {
-      p.dashboard.SOH = Math.round(Number(p.SOH));
-    } else {
-      p.dashboard.SOH = 100;
-    }
-
-    // Current mapping
     if (p.current != null) {
       const curr = parseFloat(p.current);
       p.dashboard.CurrentAmps = Number.isFinite(curr)
         ? `${curr.toFixed(2)}A`
         : String(p.current);
-    } else if (p.CurrentAmps) {
-      p.dashboard.CurrentAmps = String(p.CurrentAmps);
     }
   }
 
-  // Build systemStatus from faults object
   if (!p.systemStatus && p.faults) {
     p.systemStatus = {
-      Overvoltage: !p.faults.voltage, // fault=false means OK=true
-      Overcurrent: !p.faults.current, // fault=false means OK=true
-      Overtemp: !p.faults.temperature, // fault=false means OK=true
-      ShortCircuit: true, // default to OK if not specified
+      Overvoltage: !p.faults.voltage,
+      Overcurrent: !p.faults.current,
+      Overtemp: !p.faults.temperature,
+      DeltaVoltage: !p.faults.deltaVoltage,
     };
   }
 
-  // Normalize voltages into cellVoltages[] array
-  if (!Array.isArray(p.cellVoltages)) {
+  if (
+    !Array.isArray(p.cellVoltages) &&
+    p.voltages &&
+    typeof p.voltages === "object"
+  ) {
     const voltArray = [];
-
-    // Case: voltages object with keys V1..V8
-    if (p.voltages && typeof p.voltages === "object") {
-      for (let i = 1; i <= 32; i++) {
-        const key = `V${i}`;
-        if (Object.prototype.hasOwnProperty.call(p.voltages, key)) {
-          const v = parseFloat(p.voltages[key]);
-          if (Number.isFinite(v)) voltArray.push(v);
-        } else {
-          if (i > 8) break; // stop after trying V1-V8
-        }
-      }
+    for (let i = 1; i <= 32; i++) {
+      const key = `V${i}`;
+      if (Object.prototype.hasOwnProperty.call(p.voltages, key)) {
+        const v = parseFloat(p.voltages[key]);
+        if (Number.isFinite(v)) voltArray.push(v);
+      } else if (i > 8) break;
     }
-
-    // Fallback: voltages stored as root keys V1..Vn
-    if (voltArray.length === 0) {
-      for (let i = 1; i <= 32; i++) {
-        const key1 = `V${i}`;
-        const key2 = `v${i}`;
-        if (Object.prototype.hasOwnProperty.call(p, key1)) {
-          const v = parseFloat(p[key1]);
-          if (Number.isFinite(v)) voltArray.push(v);
-        } else if (Object.prototype.hasOwnProperty.call(p, key2)) {
-          const v = parseFloat(p[key2]);
-          if (Number.isFinite(v)) voltArray.push(v);
-        }
-      }
-    }
-
     if (voltArray.length > 0) p.cellVoltages = voltArray;
   }
 
-  // Normalize temperatures into array of {time, value}
-  if (!Array.isArray(p.temperatures)) {
+  if (
+    !Array.isArray(p.temperatures) &&
+    p.temperatures &&
+    typeof p.temperatures === "object"
+  ) {
     const temps = [];
-
-    // Case: temperatures object with keys T1..T8
-    if (p.temperatures && typeof p.temperatures === "object") {
-      for (let i = 1; i <= 32; i++) {
-        const key = `T${i}`;
-        if (Object.prototype.hasOwnProperty.call(p.temperatures, key)) {
-          const v = parseFloat(p.temperatures[key]);
-          if (Number.isFinite(v)) temps.push({ time: i - 1, value: v });
-        } else {
-          if (i > 8) break;
-        }
-      }
+    for (let i = 1; i <= 32; i++) {
+      const key = `T${i}`;
+      if (Object.prototype.hasOwnProperty.call(p.temperatures, key)) {
+        const v = parseFloat(p.temperatures[key]);
+        if (Number.isFinite(v)) temps.push({ time: i - 1, value: v });
+      } else if (i > 8) break;
     }
-
-    // Fallback: T1..Tn at root level
-    if (temps.length === 0) {
-      for (let i = 1; i <= 32; i++) {
-        const key = `T${i}`;
-        if (Object.prototype.hasOwnProperty.call(p, key)) {
-          const v = parseFloat(p[key]);
-          if (Number.isFinite(v)) temps.push({ time: i - 1, value: v });
-        }
-      }
-    }
-
     if (temps.length > 0) p.temperatures = temps;
   }
 
   return p;
 }
 
-/* ---------------------------
-   App component
-   --------------------------- */
 export default function App() {
   const [latest, setLatest] = useState(null);
   const [connected, setConnected] = useState(false);
 
-  // expose firebase helpers for debugging
-  useEffect(() => {
-    window.db = db;
-    window.ref = dbRef;
-    window.onValue = onValue;
-    console.log(
-      "✅ Firebase DB + helpers exposed as window.db / window.ref / window.onValue"
-    );
-  }, []);
-
-  // history used by TimeSeriesCharts
   const historyRef = useRef({
     times: [],
     pack: [],
@@ -194,20 +173,15 @@ export default function App() {
     }
   };
 
-  // process incoming payload and update UI + history
   const handlePayload = (payloadRaw) => {
     if (!payloadRaw) return;
     const payload = normalizePayload(payloadRaw);
     if (!payload) return;
 
-    // keep a copy for UI
     setLatest(payload);
 
-    // compute derived values for charts
     const now = payload.timestamp || Date.now();
-    const packParsed =
-      parseNum(payload.computed?.packVoltageV) ??
-      parseNum(payload.dashboard?.PackVoltage);
+    const packParsed = parseNum(payload.dashboard?.PackVoltage);
     const cells = Array.isArray(payload.cellVoltages)
       ? payload.cellVoltages.map(parseNum).filter(Number.isFinite)
       : [];
@@ -235,28 +209,22 @@ export default function App() {
     });
   };
 
-  // manual fetch (REST) fallback that reads the RTDB /BMS JSON
   const fetchNow = async () => {
     try {
       const dbUrl = db.app.options.databaseURL.replace(/\/$/, "");
       const url = `${dbUrl}/BMS.json`;
       const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) {
-        console.warn("fetchNow: response not OK", res.status);
-        return;
-      }
+      if (!res.ok) return;
       const json = await res.json();
       handlePayload(json);
-      console.info("✅ fetchNow: UI refreshed from Firebase REST");
+      console.info("✅ Data refreshed");
     } catch (e) {
-      console.warn("fetchNow failed:", e);
+      console.warn("Fetch failed:", e);
     }
   };
 
-  // subscribe to RTDB path BMS
   useEffect(() => {
     const latestRef = dbRef(db, "BMS");
-
     const unsub = onValue(
       latestRef,
       (snapshot) => {
@@ -264,18 +232,13 @@ export default function App() {
         if (val) {
           handlePayload(val);
           setConnected(true);
-          console.log("✅ Firebase data received:", val);
-        } else {
-          setConnected(true);
-          console.log("⚠️ Connected but no data in BMS path");
         }
       },
       (err) => {
-        console.error("❌ Firebase onValue error:", err);
+        console.error("Firebase error:", err);
         setConnected(false);
       }
     );
-
     return () => unsub();
   }, []);
 
@@ -289,80 +252,114 @@ export default function App() {
   };
 
   return (
-    <div className="container">
-      <header className="header">
-        <div className="brand">
-          <div className="logo">⚡</div>
-          <div>
-            <div className="title">Flash BMS Monitor</div>
-            <div className="meta">
-              Real-time •{" "}
+    <div className="app-container">
+      <div className="app-content">
+        {/* Header */}
+        <header className="app-header">
+          <div className="header-left">
+            <FlashLogo />
+            <div className="header-info">
+              <h1 className="header-title">Flash BMS Monitor</h1>
+              <p className="header-subtitle">
+                Real-time Battery Management System
+              </p>
+            </div>
+          </div>
+          <div className="header-right">
+            <div
+              className={`connection-badge ${
+                connected ? "connected" : "disconnected"
+              }`}
+            >
+              <span className="connection-dot"></span>
+              <span className="connection-text">
+                {connected ? "Connected" : "Disconnected"}
+              </span>
+            </div>
+            <div className="timestamp-display">
               {latest ? new Date(latest.timestamp).toLocaleString() : "—"}
+            </div>
+          </div>
+        </header>
+
+        {/* Dashboard */}
+        <div className="section-container">
+          <Dashboard
+            dashboard={latest?.dashboard}
+            systemStatus={latest?.systemStatus}
+            fans={latest?.fans}
+            vMax={latest?.vMax}
+            vMin={latest?.vMin}
+            vDelta={latest?.vDelta}
+            tMax={latest?.tMax}
+            tMin={latest?.tMin}
+            onRefresh={fetchNow}
+          />
+        </div>
+
+        {/* Cell Voltages */}
+        <div className="section-container">
+          <div className="section-header">
+            <h3 className="section-title">⚡ Cell Voltages</h3>
+          </div>
+          <CellGrid voltages={latest?.cellVoltages ?? []} />
+          <div className="legend-row">
+            <div className="legend-item">
+              <span className="legend-dot green"></span>
+              <span>≥3.20V Optimal</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot yellow"></span>
+              <span>3.00-3.19V Warning</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot red"></span>
+              <span>&lt;3.00V Critical</span>
             </div>
           </div>
         </div>
 
-        <div className="meta">
-          {connected ? "🟢 Connected (RTDB)" : "🔴 Disconnected"}
-        </div>
-      </header>
-
-      <div className="panel top-panel">
-        <div
-          className={`left-rings ${
-            latest?.dashboard?.PackVoltage &&
-            /charge/i.test(String(latest.dashboard.PackVoltage))
-              ? "charging"
-              : ""
-          }`}
-        >
-          <div className="ring-wrap">
-            <Dashboard
-              dashboard={latest?.dashboard}
-              systemStatus={latest?.systemStatus}
-              onRefresh={fetchNow}
-            />
+        {/* Temperature Sensors */}
+        <div className="section-container">
+          <div className="section-header">
+            <h3 className="section-title">🌡️ Temperature Sensors</h3>
+          </div>
+          <TemperatureGrid temperatures={latest?.temperatures ?? []} />
+          <div className="legend-row">
+            <div className="legend-item">
+              <span className="legend-dot temp-critical"></span>
+              <span>≥40°C Critical</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot temp-high"></span>
+              <span>30-39°C High</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot temp-normal"></span>
+              <span>20-29°C Normal</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot temp-cool"></span>
+              <span>10-19°C Cool</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-dot temp-cold"></span>
+              <span>&lt;10°C Cold</span>
+            </div>
           </div>
         </div>
+
+        {/* Charts */}
+        <div className="section-container">
+          <div className="section-header">
+            <h3 className="section-title">📊 Historical Trends</h3>
+          </div>
+          <TimeSeriesCharts history={historyForUI} />
+        </div>
+
+        {/* Footer */}
+        <Footer />
       </div>
-
-      <div className="cell-panel panel">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Cell Monitoring</div>
-        </div>
-
-        <div className="cell-grid">
-          <CellGrid voltages={latest?.cellVoltages ?? []} />
-        </div>
-
-        <div className="legend">
-          <div>
-            <span className="legend-dot green" /> ≥3.20V (green)
-          </div>
-          <div>
-            <span className="legend-dot yellow" /> 3.00–3.19V (yellow)
-          </div>
-          <div>
-            <span className="legend-dot red" /> &lt;3.00V (red)
-          </div>
-        </div>
-      </div>
-
-      <div className="panel timeseries-panel">
-        <TimeSeriesCharts history={historyForUI} />
-      </div>
-
-      <Footer
-        guide="Dr. Sumita Motade"
-        team={["Omkar Kolhe", "Vipin Jain", "Samyak Bakliwal"]}
-      />
     </div>
   );
 }

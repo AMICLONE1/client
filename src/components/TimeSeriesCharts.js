@@ -12,8 +12,9 @@ import {
 } from "recharts";
 
 export default function TimeSeriesCharts({ history }) {
-  if (!history || !history.timestamps || history.timestamps.length === 0)
-    return <div style={{ color: "#9fb0d4" }}>No recent data available</div>;
+  if (!history || !history.timestamps || history.timestamps.length === 0) {
+    return <div className="no-data">No historical data available</div>;
+  }
 
   const data = history.timestamps.map((t, i) => ({
     time: new Date(t).toLocaleTimeString(),
@@ -24,153 +25,130 @@ export default function TimeSeriesCharts({ history }) {
     current: history.current[i],
   }));
 
-  const chartCard = (title, children) => (
-    <div className="chart-card">
-      <h4 className="chart-title">{title}</h4>
-      <ResponsiveContainer width="100%" height={200}>
-        {children}
-      </ResponsiveContainer>
-    </div>
-  );
+  const chartCardStyle = {
+    background: "rgba(12, 19, 30, 0.6)",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    borderRadius: 16,
+    padding: 20,
+    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+  };
+
+  const tooltipStyle = {
+    background: "rgba(12,19,30,0.95)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 8,
+    padding: "8px 12px",
+  };
 
   return (
-    <div className="charts-grid">
-      {/* Voltage */}
-      {chartCard(
-        "Voltage (V)",
-        <LineChart data={data}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.08)"
-          />
-          <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <Tooltip
-            contentStyle={{
-              background: "rgba(12,19,30,0.9)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 8,
-              color: "#fff",
-              fontSize: 13,
-            }}
-          />
-          <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
-          <Line
-            type="monotone"
-            dataKey="avgCell"
-            stroke="#2bd48a"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "#2bd48a" }}
-            activeDot={{ r: 6, stroke: "#2bd48a", fill: "#2bd48a" }}
-            name="Avg Cell V"
-          />
-          <Line
-            type="monotone"
-            dataKey="pack"
-            stroke="#4f8cff"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "#4f8cff" }}
-            activeDot={{ r: 6, stroke: "#4f8cff", fill: "#4f8cff" }}
-            name="Pack V"
-          />
-        </LineChart>
-      )}
+    <div className="charts-container">
+      {/* Voltage Chart */}
+      <div style={chartCardStyle}>
+        <h4 className="chart-title-modern">⚡ Voltage Trends</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.08)"
+            />
+            <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey="avgCell"
+              stroke="#2bd48a"
+              strokeWidth={3}
+              dot={false}
+              name="Avg Cell V"
+            />
+            <Line
+              type="monotone"
+              dataKey="pack"
+              stroke="#4f8cff"
+              strokeWidth={3}
+              dot={false}
+              name="Pack V"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* Temperature */}
-      {chartCard(
-        "Temperature (°C)",
-        <LineChart data={data}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.08)"
-          />
-          <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <Tooltip
-            contentStyle={{
-              background: "rgba(12,19,30,0.9)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 8,
-              color: "#fff",
-              fontSize: 13,
-            }}
-          />
-          <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
-          <Line
-            type="monotone"
-            dataKey="temp"
-            stroke="#ffb86b"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "#ffb86b" }}
-            activeDot={{ r: 6, stroke: "#ffb86b", fill: "#ffb86b" }}
-            name="Avg Temp"
-          />
-        </LineChart>
-      )}
+      {/* Temperature Chart */}
+      <div style={chartCardStyle}>
+        <h4 className="chart-title-modern">🌡️ Temperature Trends</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.08)"
+            />
+            <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey="temp"
+              stroke="#ffb86b"
+              strokeWidth={3}
+              dot={false}
+              name="Avg Temp °C"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* SOC */}
-      {chartCard(
-        "SOC (%)",
-        <LineChart data={data}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.08)"
-          />
-          <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <Tooltip
-            contentStyle={{
-              background: "rgba(12,19,30,0.9)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 8,
-              color: "#fff",
-              fontSize: 13,
-            }}
-          />
-          <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
-          <Line
-            type="monotone"
-            dataKey="soc"
-            stroke="#7bb3ff"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "#7bb3ff" }}
-            activeDot={{ r: 6, stroke: "#7bb3ff", fill: "#7bb3ff" }}
-            name="SOC"
-          />
-        </LineChart>
-      )}
+      {/* SOC Chart */}
+      <div style={chartCardStyle}>
+        <h4 className="chart-title-modern">🔋 State of Charge</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.08)"
+            />
+            <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} domain={[0, 100]} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey="soc"
+              stroke="#7bb3ff"
+              strokeWidth={3}
+              dot={false}
+              name="SOC %"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* Current */}
-      {chartCard(
-        "Current (A)",
-        <LineChart data={data}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.08)"
-          />
-          <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
-          <Tooltip
-            contentStyle={{
-              background: "rgba(12,19,30,0.9)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 8,
-              color: "#fff",
-              fontSize: 13,
-            }}
-          />
-          <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
-          <Line
-            type="monotone"
-            dataKey="current"
-            stroke="#ff6b6b"
-            strokeWidth={2}
-            dot={{ r: 3, fill: "#ff6b6b" }}
-            activeDot={{ r: 6, stroke: "#ff6b6b", fill: "#ff6b6b" }}
-            name="Current"
-          />
-        </LineChart>
-      )}
+      {/* Current Chart */}
+      <div style={chartCardStyle}>
+        <h4 className="chart-title-modern">⚡ Current Flow</h4>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="rgba(255,255,255,0.08)"
+            />
+            <XAxis dataKey="time" tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <YAxis tick={{ fill: "#9fb0d4", fontSize: 12 }} />
+            <Tooltip contentStyle={tooltipStyle} />
+            <Legend wrapperStyle={{ color: "#9fb0d4", fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey="current"
+              stroke="#ff6b6b"
+              strokeWidth={3}
+              dot={false}
+              name="Current A"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
