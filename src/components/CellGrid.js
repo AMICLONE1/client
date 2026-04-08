@@ -19,10 +19,19 @@ const classFor = (n) => {
 
 export default function CellGrid({ voltages = [] }) {
   let arr = Array.isArray(voltages) ? voltages : [];
-  if (!arr.length) arr = new Array(8).fill(null);
+  if (!arr.length) {
+    return (
+      <div className="empty-state empty-state--compact">
+        <div className="empty-state__title">No cell voltage data</div>
+        <div className="empty-state__copy">
+          Cell telemetry will populate here once the pack starts streaming.
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="cell-grid-modern">
+    <div className="cell-grid-modern" role="list" aria-label="Cell voltages">
       {arr.map((v, i) => {
         const n = parseNumber(v);
         const display =
@@ -30,18 +39,24 @@ export default function CellGrid({ voltages = [] }) {
         const cls = classFor(n);
 
         return (
-          <div key={i} className={`cell-modern ${cls}`}>
+          <article
+            key={i}
+            className={`cell-modern ${cls}`}
+            role="listitem"
+            aria-label={`Cell ${i + 1}: ${display}`}
+          >
             <div className="cell-number">#{i + 1}</div>
             <div className="cell-voltage">{display}</div>
             <div className="cell-bar">
               <div
                 className="cell-bar-fill"
                 style={{
-                  width: n ? `${Math.min(100, (n / 4.2) * 100)}%` : "0%",
+                  width:
+                    n !== null ? `${Math.min(100, (n / 4.2) * 100)}%` : "0%",
                 }}
               />
             </div>
-          </div>
+          </article>
         );
       })}
     </div>

@@ -1,33 +1,54 @@
 // src/components/Dashboard.js
-import React from "react";
+import React, { useEffect, useState } from "react";
 import CircularProgress from "./CircularProgress";
 
-/* Small presentational helper: InfoCard */
-function InfoCard({ title, value, sub }) {
+function toNumber(value) {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const match = String(value).match(/-?[\d.]+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+function InfoCard({ title, value, sub, tone = "neutral" }) {
   return (
-    <div className="info-card improved" role="group" aria-label={title}>
+    <article className={`info-card improved info-card--${tone}`} aria-label={title}>
       <div className="info-title">{title}</div>
       <div className="info-value">{value}</div>
       {sub && <div className="info-sub">{sub}</div>}
-    </div>
+    </article>
   );
 }
 
-/* StatusChip: uses semantic role and accessible label */
 function StatusChip({ label, ok }) {
   return (
     <div
       className={`status-chip ${ok ? "ok" : "bad"}`}
-      role="status"
-      aria-pressed={ok}
-      aria-label={`${label}: ${ok ? "OK" : "ALARM"}`}
+      aria-label={`${label}: ${ok ? "clear" : "attention required"}`}
     >
       <div className="status-label">{label}</div>
       <div className="status-icon" aria-hidden>
-        {ok ? "✔" : "✖"}
+        {ok ? "✓" : "!"}
       </div>
     </div>
   );
+}
+
+function useViewportWidth() {
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1280
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener("resize", handleResize, { passive: true });
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return viewportWidth;
 }
 
 /* Dashboard main component
@@ -39,12 +60,23 @@ export default function Dashboard({
   systemStatus = {},
   onRefresh,
 }) {
+  const viewportWidth = useViewportWidth();
+  const ringSize = viewportWidth < 480 ? 120 : viewportWidth < 720 ? 136 : 150;
+  const ringStroke = viewportWidth < 480 ? 12 : 14;
   const SOC = dashboard?.SOC ?? 0;
   const SOH = dashboard?.SOH ?? 0;
   const pack = dashboard?.PackVoltage ?? "—";
   const current = dashboard?.CurrentAmps ?? "—";
   const timestamp = dashboard?.timestamp ?? null;
-  const isCharging = typeof pack === "string" && /charge/i.test(pack);
+  const currentValue = toNumber(current);
+  const flowState =
+    currentValue == null
+      ? null
+      : currentValue > 0
+        ? "Charging"
+        : currentValue < 0
+          ? "Discharging"
+          : "Idle";
 
   const handleRefreshClick = () => {
     if (typeof onRefresh === "function") {
@@ -64,11 +96,11 @@ export default function Dashboard({
     <div className="top-card" aria-label="BMS dashboard">
       {/* LEFT: Large SOC / SOH rings */}
       <div className="top-left">
-        <div className={`rings ${isCharging ? "charging" : ""}`} aria-hidden>
+        <div className="rings" aria-hidden>
           <div className="ring-item">
             <CircularProgress
-              size={150}
-              stroke={14}
+              size={ringSize}
+              stroke={ringStroke}
               percentage={SOC}
               color1="#5da6ff"
               color2="#7bb3ff"
@@ -78,8 +110,8 @@ export default function Dashboard({
 
           <div className="ring-item">
             <CircularProgress
-              size={150}
-              stroke={14}
+              size={ringSize}
+              stroke={ringStroke}
               percentage={SOH}
               color1="#2bd48a"
               color2="#58f1b0"
@@ -95,25 +127,33 @@ export default function Dashboard({
           <InfoCard
             title="Pack Voltage"
             value={<span className="pack-large">{pack}</span>}
-            sub={
-              isCharging ? (
-                <span className="charging-pill">Charging</span>
-              ) : null
-            }
+            sub="Latest measured pack voltage"
           />
           <InfoCard
             title="Current"
             value={<span className="pack-large">{current}</span>}
+            sub={
+              flowState ? (
+                <span
+                  className={`charging-pill charging-pill--${flowState.toLowerCase()}`}
+                >
+                  {flowState}
+                </span>
+              ) : (
+                "Waiting for current data"
+              )
+            }
+            tone={currentValue == null ? "neutral" : currentValue >= 0 ? "positive" : "warning"}
           />
         </div>
 
-        <div className="mid-actions" aria-hidden>
+        <div className="mid-actions">
           <button
             className="btn-ghost"
             onClick={handleRefreshClick}
-            title="Refresh UI"
+            title="Refresh telemetry"
           >
-            Refresh UI
+            Refresh data
           </button>
 
           <div className="small-note">
@@ -132,7 +172,7 @@ export default function Dashboard({
           <StatusChip label="Overvoltage" ok={!!systemStatus?.Overvoltage} />
           <StatusChip label="Overcurrent" ok={!!systemStatus?.Overcurrent} />
           <StatusChip label="Overtemp" ok={!!systemStatus?.Overtemp} />
-          <StatusChip label="ShortCircuit" ok={!!systemStatus?.ShortCircuit} />
+          {/* <StatusChip label="ShortCircuit" ok={!!systemStatus?.ShortCircuit} /> */}
         </div>
       </div>
     </div>

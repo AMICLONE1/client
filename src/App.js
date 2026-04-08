@@ -13,47 +13,64 @@ const MAX_HISTORY = 90;
 // Flash BMS Logo SVG
 const FlashLogo = () => (
   <svg
-    width="120"
-    height="60"
-    viewBox="0 0 200 100"
+    width="154"
+    height="84"
+    viewBox="0 0 270 140"
     xmlns="http://www.w3.org/2000/svg"
+    role="img"
+    aria-label="Flash BMS logo"
   >
     <defs>
-      <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" style={{ stopColor: "#4f8cff", stopOpacity: 1 }} />
+      <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style={{ stopColor: "#72a8ff", stopOpacity: 1 }} />
         <stop offset="100%" style={{ stopColor: "#2bd48a", stopOpacity: 1 }} />
       </linearGradient>
+      <linearGradient id="boltGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style={{ stopColor: "#ffd08a", stopOpacity: 1 }} />
+        <stop offset="100%" style={{ stopColor: "#ff9b3d", stopOpacity: 1 }} />
+      </linearGradient>
     </defs>
+    <rect
+      x="3"
+      y="3"
+      width="264"
+      height="134"
+      rx="32"
+      fill="rgba(255,255,255,0.04)"
+      stroke="rgba(255,255,255,0.08)"
+      strokeWidth="1.5"
+    />
+    <circle cx="54" cy="70" r="33" fill="url(#textGrad)" opacity="0.15" />
+    <path
+      d="M67 22L44 66H60L41 116L97 55H77L92 22Z"
+      fill="url(#boltGrad)"
+    />
     <text
-      x="10"
-      y="35"
+      x="114"
+      y="56"
       style={{
         fill: "url(#textGrad)",
-        fontFamily: "Arial, sans-serif",
-        fontWeight: 900,
-        fontSize: 32,
+        fontFamily: '"Space Grotesk", sans-serif',
+        fontWeight: 700,
+        fontSize: 36,
+        letterSpacing: 2,
       }}
     >
       FLASH
     </text>
     <text
-      x="10"
-      y="75"
+      x="114"
+      y="92"
       style={{
-        fill: "url(#textGrad)",
-        fontFamily: "Arial, sans-serif",
-        fontWeight: 900,
-        fontSize: 32,
+        fill: "rgba(231,240,255,0.84)",
+        fontFamily: '"Space Grotesk", sans-serif',
+        fontWeight: 600,
+        fontSize: 26,
+        letterSpacing: 6,
       }}
     >
       BMS
     </text>
-    <polygon
-      points="140,20 120,50 130,50 110,80 135,50 125,50"
-      fill="#ffb86b"
-      stroke="#ff9b3d"
-      strokeWidth="2"
-    />
   </svg>
 );
 
@@ -140,6 +157,24 @@ function normalizePayload(raw) {
   }
 
   return p;
+}
+
+function formatTimestamp(timestamp) {
+  if (!timestamp) return "Awaiting first frame";
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime())
+    ? "Awaiting first frame"
+    : parsed.toLocaleString();
+}
+
+function MetricCard({ label, value, note, tone = "neutral" }) {
+  return (
+    <article className={`metric-card metric-card--${tone}`} aria-label={label}>
+      <span className="metric-label">{label}</span>
+      <span className="metric-value">{value}</span>
+      {note ? <span className="metric-note">{note}</span> : null}
+    </article>
+  );
 }
 
 export default function App() {
@@ -251,113 +286,224 @@ export default function App() {
     current: historyRef.current.current,
   };
 
+  const cellVoltages = Array.isArray(latest?.cellVoltages)
+    ? latest.cellVoltages
+    : [];
+  const temperatures = Array.isArray(latest?.temperatures)
+    ? latest.temperatures
+    : [];
+  const statusValues = Object.values(latest?.systemStatus ?? {});
+  const safeCount = statusValues.filter(Boolean).length;
+  const totalStatusCount = statusValues.length;
+  const safetyValue = totalStatusCount
+    ? `${safeCount}/${totalStatusCount} clear`
+    : "Awaiting telemetry";
+  const safetyNote = totalStatusCount
+    ? safeCount === totalStatusCount
+      ? "No active faults"
+      : `${totalStatusCount - safeCount} alarm${
+          totalStatusCount - safeCount === 1 ? "" : "s"
+        } active`
+    : "Fault flags will appear here";
+  const connectionState = connected ? "Online" : "Offline";
+  const packValue = latest?.dashboard?.PackVoltage ?? "—";
+  const currentValue = latest?.dashboard?.CurrentAmps ?? "—";
+  const historyCount = historyRef.current.times.length;
+  const liveTimestamp = formatTimestamp(latest?.timestamp);
+
   return (
-    <div className="app-container">
+    <div className="app-shell">
+      <div className="app-aurora" aria-hidden="true" />
+      <div className="app-grid-overlay" aria-hidden="true" />
+
       <div className="app-content">
-        {/* Header */}
-        <header className="app-header">
-          <div className="header-left">
-            <FlashLogo />
-            <div className="header-info">
-              <h1 className="header-title">Flash BMS Monitor</h1>
-              <p className="header-subtitle">
-                Real-time Battery Management System
-              </p>
+        <header className="hero-shell">
+          <div className="hero-top">
+            <div className="brand-lockup">
+              <div className="brand-mark">
+                <FlashLogo />
+              </div>
+              <div className="brand-copy">
+                <p className="eyebrow">Battery intelligence dashboard</p>
+                <h1>Flash BMS Monitor</h1>
+                <p className="hero-description">
+                  A focused control room for pack health, thermal drift, and
+                  live safety states.
+                </p>
+              </div>
+            </div>
+
+            <div className="hero-status">
+              <div
+                className={`connection-badge ${
+                  connected ? "connected" : "disconnected"
+                }`}
+              >
+                <span className="connection-dot"></span>
+                <span className="connection-text">
+                  {connected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+              <div className="timestamp-display">Updated {liveTimestamp}</div>
             </div>
           </div>
-          <div className="header-right">
-            <div
-              className={`connection-badge ${
-                connected ? "connected" : "disconnected"
-              }`}
-            >
-              <span className="connection-dot"></span>
-              <span className="connection-text">
-                {connected ? "Connected" : "Disconnected"}
-              </span>
-            </div>
-            <div className="timestamp-display">
-              {latest ? new Date(latest.timestamp).toLocaleString() : "—"}
-            </div>
+
+          <div className="metric-grid">
+            <MetricCard
+              label="Connection"
+              value={connectionState}
+              note="Live telemetry stream"
+              tone={connected ? "positive" : "warning"}
+            />
+            <MetricCard
+              label="Safety"
+              value={safetyValue}
+              note={safetyNote}
+              tone={
+                totalStatusCount > 0 && safeCount === totalStatusCount
+                  ? "positive"
+                  : "warning"
+              }
+            />
+            <MetricCard
+              label="Pack Voltage"
+              value={packValue}
+              note="Snapshot of the pack bus"
+            />
+            <MetricCard
+              label="Current"
+              value={currentValue}
+              note="Positive means charging"
+            />
+            <MetricCard
+              label="Cells"
+              value={`${cellVoltages.length} sensed`}
+              note="Voltage samples in this frame"
+            />
+            <MetricCard
+              label="Temperatures"
+              value={`${temperatures.length} sensed`}
+              note="Thermal samples in this frame"
+            />
+            <MetricCard
+              label="History"
+              value={`${historyCount} points`}
+              note="Rolling window of telemetry"
+            />
           </div>
         </header>
 
-        {/* Dashboard */}
-        <div className="section-container">
-          <Dashboard
-            dashboard={latest?.dashboard}
-            systemStatus={latest?.systemStatus}
-            fans={latest?.fans}
-            vMax={latest?.vMax}
-            vMin={latest?.vMin}
-            vDelta={latest?.vDelta}
-            tMax={latest?.tMax}
-            tMin={latest?.tMin}
-            onRefresh={fetchNow}
-          />
-        </div>
+        <main className="dashboard-stack">
+          <section className="section-shell">
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">System overview</p>
+                <h2 className="section-title">Live pack state</h2>
+                <p className="section-copy">
+                  Primary indicators, safety flags, and the latest refresh
+                  action live here.
+                </p>
+              </div>
+            </div>
 
-        {/* Cell Voltages */}
-        <div className="section-container">
-          <div className="section-header">
-            <h3 className="section-title">⚡ Cell Voltages</h3>
-          </div>
-          <CellGrid voltages={latest?.cellVoltages ?? []} />
-          <div className="legend-row">
-            <div className="legend-item">
-              <span className="legend-dot green"></span>
-              <span>≥3.20V Optimal</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot yellow"></span>
-              <span>3.00-3.19V Warning</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot red"></span>
-              <span>&lt;3.00V Critical</span>
-            </div>
-          </div>
-        </div>
+            <Dashboard
+              dashboard={latest?.dashboard}
+              systemStatus={latest?.systemStatus}
+              fans={latest?.fans}
+              vMax={latest?.vMax}
+              vMin={latest?.vMin}
+              vDelta={latest?.vDelta}
+              tMax={latest?.tMax}
+              tMin={latest?.tMin}
+              onRefresh={fetchNow}
+            />
+          </section>
 
-        {/* Temperature Sensors */}
-        <div className="section-container">
-          <div className="section-header">
-            <h3 className="section-title">🌡️ Temperature Sensors</h3>
-          </div>
-          <TemperatureGrid temperatures={latest?.temperatures ?? []} />
-          <div className="legend-row">
-            <div className="legend-item">
-              <span className="legend-dot temp-critical"></span>
-              <span>≥40°C Critical</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot temp-high"></span>
-              <span>30-39°C High</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot temp-normal"></span>
-              <span>20-29°C Normal</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot temp-cool"></span>
-              <span>10-19°C Cool</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-dot temp-cold"></span>
-              <span>&lt;10°C Cold</span>
-            </div>
-          </div>
-        </div>
+          <div className="insight-grid">
+            <section className="section-shell">
+              <div className="section-header">
+                <div>
+                  <p className="section-kicker">Cell balance</p>
+                  <h2 className="section-title">Voltage distribution</h2>
+                  <p className="section-copy">
+                    Spot imbalance patterns before they become a problem.
+                  </p>
+                </div>
+              </div>
 
-        {/* Charts */}
-        <div className="section-container">
-          <div className="section-header">
-            <h3 className="section-title">📊 Historical Trends</h3>
-          </div>
-          <TimeSeriesCharts history={historyForUI} />
-        </div>
+              <CellGrid voltages={cellVoltages} />
 
-        {/* Footer */}
+              <div className="legend-row">
+                <div className="legend-item">
+                  <span className="legend-dot green"></span>
+                  <span>≥3.20V Optimal</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot yellow"></span>
+                  <span>3.00-3.19V Warning</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot red"></span>
+                  <span>&lt;3.00V Critical</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="section-shell">
+              <div className="section-header">
+                <div>
+                  <p className="section-kicker">Thermal monitoring</p>
+                  <h2 className="section-title">Temperature sensors</h2>
+                  <p className="section-copy">
+                    Monitor hot spots and thermal spread across the pack.
+                  </p>
+                </div>
+              </div>
+
+              <TemperatureGrid temperatures={temperatures} />
+
+              <div className="legend-row legend-row--wrap">
+                <div className="legend-item">
+                  <span className="legend-dot temp-critical"></span>
+                  <span>≥40°C Critical</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot temp-high"></span>
+                  <span>30-39°C High</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot temp-normal"></span>
+                  <span>20-29°C Normal</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot temp-cool"></span>
+                  <span>10-19°C Cool</span>
+                </div>
+                <div className="legend-item">
+                  <span className="legend-dot temp-cold"></span>
+                  <span>&lt;10°C Cold</span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section className="section-shell section-shell--full">
+            <div className="section-header">
+              <div>
+                <p className="section-kicker">Performance history</p>
+                <h2 className="section-title">Trends over time</h2>
+                <p className="section-copy">
+                  Voltage, temperature, SOC, and current over the latest
+                  samples.
+                </p>
+              </div>
+              <div className="section-meta">{historyCount} samples tracked</div>
+            </div>
+
+            <TimeSeriesCharts history={historyForUI} />
+          </section>
+        </main>
+
         <Footer />
       </div>
     </div>

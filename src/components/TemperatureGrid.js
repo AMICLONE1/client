@@ -30,10 +30,19 @@ const getTempIcon = (t) => {
 
 export default function TemperatureGrid({ temperatures = [] }) {
   const temps = Array.isArray(temperatures) ? temperatures : [];
-  if (!temps.length) return <div className="no-data">No temperature data</div>;
+  if (!temps.length) {
+    return (
+      <div className="empty-state empty-state--compact">
+        <div className="empty-state__title">No temperature data</div>
+        <div className="empty-state__copy">
+          Thermal sensors will appear here as soon as readings arrive.
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="temp-grid-modern">
+    <div className="temp-grid-modern" role="list" aria-label="Temperature sensors">
       {temps.map((temp, i) => {
         const val = parseNumber(temp?.value ?? temp);
         const display =
@@ -42,7 +51,12 @@ export default function TemperatureGrid({ temperatures = [] }) {
         const icon = getTempIcon(val);
 
         return (
-          <div key={i} className={`temp-card-modern ${cls}`}>
+          <article
+            key={i}
+            className={`temp-card-modern ${cls}`}
+            role="listitem"
+            aria-label={`Sensor ${i + 1}: ${display}`}
+          >
             <div className="temp-icon">{icon}</div>
             <div className="temp-label">Sensor {i + 1}</div>
             <div className="temp-value">{display}</div>
@@ -50,13 +64,14 @@ export default function TemperatureGrid({ temperatures = [] }) {
               <div
                 className="temp-bar-fill"
                 style={{
-                  width: val
-                    ? `${Math.min(100, Math.max(0, ((val + 10) / 60) * 100))}%`
+                  width:
+                    val !== null
+                      ? `${Math.min(100, Math.max(0, ((val + 10) / 60) * 100))}%`
                     : "0%",
                 }}
               />
             </div>
-          </div>
+          </article>
         );
       })}
     </div>
