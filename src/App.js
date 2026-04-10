@@ -5,8 +5,6 @@ import CellGrid from "./components/CellGrid";
 import TemperatureGrid from "./components/TemperatureGrid";
 import TimeSeriesCharts from "./components/TimeSeriesCharts";
 import Footer from "./components/Footer";
-import { db } from "./firebase";
-import { ref as dbRef, onValue } from "firebase/database";
 
 const MAX_HISTORY = 90;
 
@@ -246,8 +244,7 @@ export default function App() {
 
   const fetchNow = async () => {
     try {
-      const dbUrl = db.app.options.databaseURL.replace(/\/$/, "");
-      const url = `${dbUrl}/BMS.json`;
+      const url = "http://localhost:5000/api/current-data";
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return;
       const json = await res.json();
@@ -259,22 +256,68 @@ export default function App() {
   };
 
   useEffect(() => {
-    const latestRef = dbRef(db, "BMS");
-    const unsub = onValue(
-      latestRef,
-      (snapshot) => {
-        const val = snapshot.val();
-        if (val) {
-          handlePayload(val);
+    // Connect to WebSocket server
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const host = window.location.hostname;
+    const port = 5000;
+    const wsUrl = `${protocol}://${host}:${port}`;
+    
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const reconnectDelay = 3000;
+    
+    const connectWebSocket = () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+          console.log("✅ WebSocket connected");
           setConnected(true);
-        }
-      },
-      (err) => {
-        console.error("Firebase error:", err);
+          reconnectAttempts = 0;
+          // Register as browser client
+          ws.send(JSON.stringify({ type: "register", client: "browser" }));
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "update" && msg.data) {
+              handlePayload(msg.data);
+            }
+          } catch (e) {
+            console.error("Failed to parse WebSocket message:", e);
+          }
+        };
+        
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          setConnected(false);
+        };
+        
+        ws.onclose = () => {
+          console.warn("WebSocket disconnected");
+          setConnected(false);
+          // Attempt to reconnect
+          if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            console.log(`Reconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+            setTimeout(connectWebSocket, reconnectDelay);
+          }
+        };
+      } catch (e) {
+        console.error("Failed to create WebSocket:", e);
         setConnected(false);
       }
-    );
-    return () => unsub();
+    };
+    
+    connectWebSocket();
+    
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
   }, []);
 
   const historyForUI = {
