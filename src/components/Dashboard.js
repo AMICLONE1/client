@@ -169,10 +169,10 @@ export default function Dashboard({
         aria-label="System status"
       >
         <div className="chips-vertical">
-          <StatusChip label="Overvoltage" ok={!!systemStatus?.Overvoltage} />
-          <StatusChip label="Overcurrent" ok={!!systemStatus?.Overcurrent} />
-          <StatusChip label="Overtemp" ok={!!systemStatus?.Overtemp} />
-          {/* <StatusChip label="ShortCircuit" ok={!!systemStatus?.ShortCircuit} /> */}
+          <StatusChip label="Overvoltage" ok={!systemStatus?.Overvoltage} />
+          <StatusChip label="Overcurrent" ok={!systemStatus?.Overcurrent} />
+          <StatusChip label="Overtemp" ok={!systemStatus?.Overtemp} />
+          {/* <StatusChip label="ShortCircuit" ok={!systemStatus?.ShortCircuit} /> */}
         </div>
       </div>
     </div>
